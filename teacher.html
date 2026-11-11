@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Giáo viên · Luyện tập Vật lí nhiệt</title>
+<style>
+:root{--bg:#fdf8f3;--card:#fff;--ink:#2a2320;--muted:#6f625a;--line:#eadfd5;--accent:#e2571f;--ok:#1b7f4b;--okbg:#dff5e8;--bad:#b3261e;--badbg:#fbe1de;--warn:#8a5a00;--warnbg:#fff1d6}
+@media (prefers-color-scheme:dark){:root{--bg:#1b1613;--card:#262019;--ink:#f3ebe4;--muted:#b3a499;--line:#3a2f27;--accent:#ff8a57;--ok:#7fd6a3;--okbg:#17382a;--bad:#ff9d94;--badbg:#42201d;--warn:#ffd27a;--warnbg:#3d2f0e}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 system-ui,"Segoe UI",sans-serif}
+main{max-width:1000px;margin:0 auto;padding:20px 16px}
+h1{font-size:21px;margin:0 0 12px}
+h2{font-size:17px;margin:22px 0 8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:14px}
+input,button{font:inherit;color:inherit;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:7px 14px}
+button{cursor:pointer}button:hover{border-color:var(--accent)}
+.go{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:600}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.sp{flex:1}
+.muted{color:var(--muted);font-size:14px}
+.tabs{display:flex;gap:6px;margin-bottom:12px}
+.tabs button.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:6px}
+.stat{background:var(--bg);border-radius:10px;padding:8px 12px}.stat b{display:block;font-size:22px;font-weight:600}
+table{width:100%;border-collapse:collapse}
+th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:13px;color:var(--muted);font-weight:600}
+td.n,th.n{text-align:right;white-space:nowrap}
+.bar{height:8px;background:var(--line);border-radius:4px;min-width:70px}.bar i{display:block;height:8px;border-radius:4px}
+.low{color:var(--bad)}.warnbox{background:var(--warnbg);color:var(--warn);border-radius:10px;padding:8px 12px;font-size:14px}
+.err{color:var(--bad);min-height:1.4em}
+.wrap{overflow-x:auto}
+</style>
+</head>
+<body>
+<main>
+<h1>Giáo viên · Luyện tập Vật lí 12 · Vật lí nhiệt</h1>
+
+<div class="card" id="login">
+  <p>Nhập mật khẩu giáo viên để xem kết quả của lớp.</p>
+  <div class="row"><input type="password" id="pw" placeholder="Mật khẩu giáo viên" autocomplete="off" aria-label="Mật khẩu giáo viên"><button class="go" id="vao">Vào</button></div>
+  <div class="err" id="err" role="alert"></div>
+</div>
+
+<div id="app" hidden>
+  <div class="row" style="margin-bottom:10px">
+    <div class="tabs" id="tabs"></div><span class="sp"></span>
+    <span class="muted" id="cap"></span>
+    <button id="lam">Làm mới</button>
+    <button id="csv">Tải kết quả (.csv)</button>
+    <button id="reset">Xóa kết quả</button>
+  </div>
+  <div class="stats" id="stats"></div>
+  <h2>Học sinh</h2>
+  <div class="card wrap" id="hs"></div>
+  <h2>Từng câu (câu khó nhất ở trên)</h2>
+  <div class="card wrap" id="cau"></div>
+  <p class="warnbox">Kết quả chỉ lưu trong bộ nhớ của máy chủ. Gói miễn phí của Render tự ngủ sau khoảng 15 phút không ai dùng và sẽ xóa kết quả, nên hãy bấm "Tải kết quả (.csv)" trước khi kết thúc buổi. Hai học sinh trùng họ tên sẽ bị gộp thành một, nên nhắc các em nhập thêm lớp (ví dụ "An 12A6").</p>
+</div>
+</main>
+<script>
+var PW = '', D = null, PAGE = 'tln', TM = null;
+function $(i) { return document.getElementById(i); }
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+try { PW = sessionStorage.getItem('vl12nhiet_pw') || ''; } catch (e) {}
+function api(path, opt) { opt = opt || {}; opt.headers = Object.assign({ 'X-Teacher-Pass': PW, 'Content-Type': 'application/json' }, opt.headers || {}); return fetch(path, opt); }
+function dang() { $('login').hidden = false; $('app').hidden = true; if (TM) { clearInterval(TM); TM = null; } }
+function tai() {
+  return api('/api/t/state').then(function (r) {
+    if (r.status === 401) { PW = ''; try { sessionStorage.removeItem('vl12nhiet_pw'); } catch (e) {} dang(); $('err').textContent = 'Sai mật khẩu.'; throw 0; }
+    if (!r.ok) throw 1; return r.json();
+  }).then(function (j) { D = j; $('login').hidden = true; $('app').hidden = false; ve(); }).catch(function (e) { if (e === 1) $('err').textContent = 'Không kết nối được máy chủ. Nếu máy chủ vừa ngủ, đợi khoảng 1 phút rồi thử lại.'; });
+}
+function vao() {
+  PW = $('pw').value; if (!PW) { $('err').textContent = 'Nhập mật khẩu.'; return; }
+  $('err').textContent = 'Đang kiểm tra…';
+  tai().then(function () { if (D) { try { sessionStorage.setItem('vl12nhiet_pw', PW); } catch (e) {} $('err').textContent = ''; if (!TM) TM = setInterval(tai, 15000); } });
+}
+function ve() {
+  var M = D.meta[PAGE], R = D.res[PAGE], hs = Object.keys(R).map(function (k) { return R[k]; });
+  $('tabs').innerHTML = ['tln', 'ds'].map(function (k) { return '<button data-p="' + k + '" class="' + (k === PAGE ? 'on' : '') + '">' + esc(D.meta[k].ten) + ' (' + Object.keys(D.res[k]).length + ')</button>'; }).join('');
+  var gio = new Date(D.now).toLocaleTimeString('vi-VN');
+  $('cap').textContent = 'Cập nhật ' + gio;
+  // thống kê chung
+  var tot = {}, soCau = {};
+  M.qs.forEach(function (q) { soCau[q.id] = { n: 0, ok: 0, y: 0 }; });
+  hs.forEach(function (h) {
+    var t = 0, d = 0;
+    M.qs.forEach(function (q) { var x = h.q[q.id]; if (!x) return; d++; var s = soCau[q.id]; s.n++; if (PAGE === 'tln') { t += x.k ? 1 : 0; s.ok += x.k ? 1 : 0; } else { t += x.p || 0; s.ok += x.c === 4 ? 1 : 0; s.y += x.c || 0; } });
+    tot[h.name] = { t: Math.round(t * 100) / 100, d: d };
+  });
+  var tb = hs.reduce(function (a, h) { return a + tot[h.name].t; }, 0), nl = hs.filter(function (h) { return tot[h.name].d > 0; }).length;
+  $('stats').innerHTML = '<div class="stat"><span class="muted">Học sinh đã vào</span><b>' + hs.length + '</b></div><div class="stat"><span class="muted">Đã làm ít nhất 1 câu</span><b>' + nl + '</b></div><div class="stat"><span class="muted">' + (PAGE === 'tln' ? 'Trung bình số câu đúng' : 'Trung bình điểm') + '</span><b>' + (nl ? (Math.round(tb / hs.length * 10) / 10).toString().replace('.', ',') : '–') + '</b></div><div class="stat"><span class="muted">Tổng số câu</span><b>' + M.qs.length + '</b></div>';
+  // bảng học sinh
+  hs.sort(function (a, b) { return tot[b.name].t - tot[a.name].t || a.name.localeCompare(b.name, 'vi'); });
+  var h1 = '<table><tr><th>Họ tên</th><th class="n">' + (PAGE === 'tln' ? 'Số câu đúng' : 'Điểm') + '</th><th class="n">Đã làm</th><th class="n">Lần cuối</th></tr>';
+  if (!hs.length) h1 += '<tr><td colspan="4" class="muted">Chưa có học sinh nào gửi kết quả. Học sinh cần nhập họ tên và làm ít nhất một câu.</td></tr>';
+  hs.forEach(function (h) { var ph = Math.round((D.now - h.t) / 60000); h1 += '<tr><td>' + esc(h.name) + '</td><td class="n">' + String(tot[h.name].t).replace('.', ',') + '</td><td class="n">' + tot[h.name].d + ' / ' + M.qs.length + '</td><td class="n muted">' + (ph < 1 ? 'vừa xong' : ph + ' phút trước') + '</td></tr>'; });
+  $('hs').innerHTML = h1 + '</table>';
+  // bảng từng câu
+  var rows = M.qs.map(function (q) { var s = soCau[q.id]; return { q: q, s: s, p: s.n ? s.ok / s.n : null }; });
+  rows.sort(function (a, b) { if (a.p === null && b.p === null) return 0; if (a.p === null) return 1; if (b.p === null) return -1; return a.p - b.p; });
+  var nhom = {}; M.nhom.forEach(function (g) { nhom[g.n] = g.t; });
+  var h2 = '<table><tr><th>Câu</th><th>Nội dung</th><th class="n">Đã làm</th><th class="n">' + (PAGE === 'tln' ? 'Đúng' : 'Đúng đủ 4 ý') + '</th><th style="min-width:90px"></th></tr>';
+  rows.forEach(function (r) {
+    var pc = r.p === null ? null : Math.round(r.p * 100), col = pc === null ? 'var(--line)' : pc < 50 ? 'var(--bad)' : pc < 80 ? 'var(--accent)' : 'var(--ok)';
+    h2 += '<tr><td class="n"><b>' + (PAGE === 'tln' ? 'Bài ' : 'Nhóm ') + r.q.g + '</b> · câu ' + r.q.n + '</td><td>' + esc(r.q.t) + '<div class="muted">' + esc(nhom[r.q.g] || '') + '</div></td><td class="n">' + r.s.n + '</td><td class="n ' + (pc !== null && pc < 50 ? 'low' : '') + '">' + (pc === null ? '–' : pc + '%') + (PAGE === 'ds' && r.s.n ? '<div class="muted">TB ' + (Math.round(r.s.y / r.s.n * 10) / 10).toString().replace('.', ',') + '/4 ý</div>' : '') + '</td><td><div class="bar"><i style="width:' + (pc || 0) + '%;background:' + col + '"></i></div></td></tr>';
+  });
+  $('cau').innerHTML = h2 + '</table>';
+}
+$('vao').onclick = vao;
+$('pw').addEventListener('keydown', function (e) { if (e.key === 'Enter') vao(); });
+$('tabs').addEventListener('click', function (e) { var b = e.target.closest('button[data-p]'); if (b) { PAGE = b.getAttribute('data-p'); ve(); } });
+$('lam').onclick = tai;
+$('csv').onclick = function () {
+  api('/api/t/export.csv?page=' + PAGE).then(function (r) { if (!r.ok) throw 0; return r.blob(); }).then(function (b) {
+    var a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'ket-qua-' + (PAGE === 'tln' ? 'tra-loi-ngan' : 'dung-sai') + '.csv'; a.click(); URL.revokeObjectURL(a.href);
+  }).catch(function () { alert('Không tải được file kết quả.'); });
+};
+$('reset').onclick = function () {
+  if (!confirm('Xóa kết quả của "' + D.meta[PAGE].ten + '" cho cả lớp? Không khôi phục được. Hãy tải file .csv trước.')) return;
+  api('/api/t/reset', { method: 'POST', body: JSON.stringify({ page: PAGE }) }).then(function (r) { if (!r.ok) throw 0; return tai(); }).catch(function () { alert('Không xóa được.'); });
+};
+if (PW) { tai().then(function () { if (D && !TM) TM = setInterval(tai, 15000); }); }
+</script>
+</body>
+</html>

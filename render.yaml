@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: phong-luyen-vat-li-nhiet
+    runtime: node
+    plan: free
+    buildCommand: echo "khong can cai goi"
+    startCommand: node server.js
+    healthCheckPath: /healthz
+    envVars:
+      - key: TEACHER_PASS
+        sync: false
