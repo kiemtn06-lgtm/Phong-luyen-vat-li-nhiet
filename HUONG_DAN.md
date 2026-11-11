@@ -11,6 +11,12 @@ Nội dung **giữ nguyên 100%** từ hai trang luyện tập gốc (thư mục
 | Tự luyện đúng sai (trang gốc, không gửi kết quả) | `/tu-luyen/dung-sai` |
 | Tự luyện trả lời ngắn (trang gốc, không gửi kết quả) | `/tu-luyen/tra-loi-ngan` |
 
+## Hai tab: Đúng sai và Trả lời ngắn
+- Cả học sinh và giáo viên có hai tab riêng: **Đúng sai** (10 nhóm, 40 câu) và **Trả lời ngắn** (6 bài, 64 câu). Mỗi tab đánh số câu từ 1 và gom câu theo nhóm hoặc bài, có tiêu đề từng nhóm và số câu đã làm.
+- Nút **Mở câu** và **Mở hết nhóm** của giáo viên mở theo tab đang chọn. Ở "Cài đặt thêm", danh sách nhóm cũng chỉ hiện nhóm của tab đang chọn.
+- Bảng kết quả của giáo viên tách theo tab, có hàng tiêu đề nhóm hoặc bài phía trên các cột câu; điểm và xếp hạng tính riêng theo tab.
+- Ảnh trong câu hỏi hiển thị nhỏ gọn; bấm vào ảnh để phóng to, bấm lần nữa để đóng.
+
 ## Điều khiển trong buổi học (giống khối 10, 11)
 - **Mở câu N**: mở từng câu. **Mở hết buổi**: mở cả buổi (mỗi nhóm hoặc bài là một buổi). **Mở tất cả**.
 - **Đóng câu & hiện đáp án**: học sinh thấy đúng/sai và lời giải. **Đóng cả … câu đang mở**.

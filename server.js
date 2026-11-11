@@ -137,13 +137,19 @@ function isTeacher(req) {
   const b = crypto.createHash('sha256').update(TEACHER_PASS).digest();
   return crypto.timingSafeEqual(a, b);
 }
+// tab (đúng sai / trả lời ngắn) của câu, để học sinh thấy đúng số câu mỗi tab kể cả câu chưa mở (không lộ nội dung)
+function tabIdOf(q) {
+  if (!CFG.tabs || !CFG.tabs.length) return undefined;
+  for (const t of CFG.tabs) if (t.types.includes(q.type)) return t.id;
+  return CFG.tabs[0].id;
+}
 function publicConfig() {
   // câu chưa mở chỉ gửi mã và dạng, không gửi nội dung
   return {
-    title: CFG.title, groups: CFG.groups, sessions: CFG.sessions, total: N, hasView: CFG.questions.some(q => q.type === 'view'),
+    title: CFG.title, tabs: CFG.tabs, groups: CFG.groups, sessions: CFG.sessions, total: N, hasView: CFG.questions.some(q => q.type === 'view'),
     released: state.released, closed: state.closed,
     settings: settingsOut(), progress: progressInfo(), autoSeq: state.autoSeq,
-    questions: Qs().map((q, i) => i < state.released ? q : { id: q.id, type: 'hidden', group: q.group })
+    questions: Qs().map((q, i) => i < state.released ? q : { id: q.id, type: 'hidden', group: q.group, tab: tabIdOf(q) })
   };
 }
 function reveal() {

@@ -160,7 +160,15 @@ table.m td.c-ok,table.m td.c-bad,table.m td.c-sent,table.m td.c-none{min-width:4
 .simbar .sl input{width:130px}
 .simhint{margin-bottom:10px}
 .simsvg .ct.vac{fill:var(--line);fill-opacity:.35}
-.qfig{display:block;max-width:100%;height:auto;margin:8px 0;border-radius:6px;background:#fff}
+.qfigs{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start;margin:8px 0}
+.qfig{display:block;max-width:min(100%,300px);max-height:210px;width:auto;height:auto;object-fit:contain;margin:0;border-radius:6px;background:#fff;border:1px solid var(--line);cursor:zoom-in}
+.zoomov{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.78);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:16px;cursor:zoom-out}
+.zoomov img{max-width:94vw;max-height:84vh;background:#fff;border-radius:8px}
+.zoomov span{color:#fff;font-size:14px}
+.gh{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;margin:18px 2px 8px;padding-bottom:4px;border-bottom:2px solid var(--accent)}
+.gh b{font-size:15px}
+.gh span{color:var(--muted);font-size:13px}
+th.gth{font-size:12px;color:var(--muted);border-left:1px solid var(--line);text-align:center;white-space:nowrap}
 .rawfig{margin:8px 0}
 .rawfig table.data{border-collapse:collapse;margin:8px 0;font-size:.95em;max-width:100%;display:block;overflow-x:auto}
 .rawfig table.data th,.rawfig table.data td{border:1px solid var(--line);padding:4px 10px;text-align:center}
@@ -244,6 +252,68 @@ function rich(p){
 function fmt(t){return String(t==null?'':t).split('$').map(function(p,k){return k%2?tex(p):rich(p);}).join('');}
 function gname(q){var g=S.config&&S.config.groups;return g&&g[q.group]?g[q.group]:'';}
 function teacherNote(q){var n=S.key&&S.key.note&&S.key.note[q.id];return n?'<div class="tnote">Ghi chú cho giáo viên: '+fmt(n)+'</div>':'';}
+/* Hai tab (đúng sai / trả lời ngắn): cấu hình ở cfg.tabs = [{id,ten,types:[...]}]. Không có cfg.tabs thì hoạt động như cũ. */
+function TABS(){var t=S.config&&S.config.tabs;return t&&t.length?t:null;}
+function tabOf(q){var T=TABS();if(!T)return null;if(q.tab)return q.tab;for(var i=0;i<T.length;i++)if(T[i].types.indexOf(q.type)>=0)return T[i].id;return T[0].id;}
+function curTab(){var T=TABS();if(!T)return null;if(S.qtab&&T.some(function(x){return x.id===S.qtab;}))return S.qtab;return T[0].id;}
+function tabBar(qs,r){
+  var T=TABS();if(!T)return '';var st={},cur=curTab();
+  T.forEach(function(t){st[t.id]={total:0,open:0};});
+  qs.forEach(function(q,i){var x=st[tabOf(q)];x.total++;if(i<r)x.open++;});
+  return '<div class="seg2">'+T.map(function(t){return '<button class="'+(t.id===cur?'on':'')+'" data-act="qtab" data-t="'+esc(t.id)+'">'+esc(t.ten)+' · '+st[t.id].open+'/'+st[t.id].total+'</button>';}).join('')+'</div>';
+}
+function ordTab(qs,i){var tb=tabOf(qs[i]),n=0;for(var j=0;j<=i;j++)if(tabOf(qs[j])===tb)n++;return n;}
+function shortG(g){var G=(S.config&&S.config.groups)||{},p=String(G[g]||'').split(' · ');return p[1]||('Nhóm '+g);}
+function resultTab(ids,qs,r,k,fq){
+  var tb=curTab(),T=TABS(),tname=(T.filter(function(t){return t.id===tb;})[0]||{}).ten||'',cols=[],ord={},n0=0;
+  qs.forEach(function(x,i){if(tabOf(x)===tb){ord[i]=++n0;if(i<r)cols.push(i);}});
+  var cr=cols.filter(function(i){return !isV(qs[i]);}).length,kc=cols.filter(function(i){return i<k&&!isV(qs[i]);}).length;
+  var sc={},lv={},rank={};
+  ids.forEach(function(id){var a=S.responses[id].answers||{},s=0,l=0;cols.forEach(function(i){var x=qs[i];if(grade(x,a[x.id],keyFor(x.id))===true){l++;if(i<k)s++;}});sc[id]=s;lv[id]=l;});
+  var od=ids.slice().sort(function(a,b){
+    if(kc>0&&sc[a]!==sc[b])return sc[b]-sc[a];
+    if(kc>0&&lv[a]!==lv[b])return lv[b]-lv[a];
+    return String(S.responses[a].name).localeCompare(String(S.responses[b].name),'vi');});
+  od.forEach(function(id,j){rank[id]=(j>0&&sc[id]===sc[od[j-1]])?rank[od[j-1]]:j+1;});
+  var gh='',cg=null,span=0;
+  cols.forEach(function(i,j){var g=qs[i].group;if(g!==cg){if(cg!==null)gh+='<th colspan="'+span+'" class="gth">'+esc(shortG(cg))+'</th>';cg=g;span=0;}span++;if(j===cols.length-1)gh+='<th colspan="'+span+'" class="gth">'+esc(shortG(cg))+'</th>';});
+  var h='<div class="card"><h2>Kết quả từng học sinh · '+esc(tname)+(kc>0?' <small class="grp">(xếp theo '+kc+' câu đã đóng)</small>':'')+'</h2>';
+  if(!cols.length)return h+'<div class="kv">Chưa mở câu nào ở tab này.</div></div>';
+  h+='<div class="scroll"><table class="m"><thead><tr><th rowspan="2">Học sinh</th>'+gh+'<th rowspan="2">Đúng</th><th rowspan="2">%</th><th rowspan="2">Điểm /10</th></tr><tr>'+
+    cols.map(function(i){return '<th><button class="'+(i===fq?'on':'')+'" data-act="focus" data-i="'+i+'" title="'+esc(gname(qs[i]))+'">'+ord[i]+'</button></th>';}).join('')+'</tr></thead><tbody>';
+  var colC=cols.map(function(){return 0;}),colA=cols.map(function(){return 0;});
+  od.forEach(function(id){
+    var a=S.responses[id].answers||{},t=0;
+    h+='<tr'+(kc>0&&rank[id]<=3&&sc[id]>0?' class="hl"':'')+'><td>'+(kc>0?'<span class="rk r'+(rank[id]<=3&&sc[id]>0?rank[id]:0)+'">'+rank[id]+'</span>':'')+esc(S.responses[id].name)+'</td>';
+    cols.forEach(function(i,j){
+      var x=qs[i],v=a[x.id],g=grade(x,v,keyFor(x.id));
+      if(v!=null)colA[j]++;
+      if(g===true){t++;colC[j]++;h+='<td class="c-ok" title="Đúng">✓</td>';}
+      else if(g===false)h+='<td class="c-bad" title="Sai">✗</td>';
+      else if(g===undefined)h+='<td class="c-sent" title="Đã gửi, chưa có đáp án">●</td>';
+      else h+='<td class="c-none" title="Chưa trả lời">–</td>';
+    });
+    h+='<td class="num">'+t+'/'+cr+'</td><td class="num">'+(cr?pct(t,cr):'—')+'%</td><td class="num"><b>'+sc10(t,cr)+'</b></td></tr>';
+  });
+  if(!ids.length)h+='<tr><td colspan="'+(cols.length+4)+'" style="text-align:left">Chưa có học sinh nào vào phòng.</td></tr>';
+  h+='</tbody><tfoot><tr><td>% đúng</td>'+cols.map(function(i,j){return '<td>'+(colA[j]?pct(colC[j],colA[j])+'%':'')+'</td>';}).join('')+'<td></td><td></td><td></td></tr></tfoot></table></div>'+
+    '<div class="kv" style="margin-top:10px">✓ đúng · ✗ sai · – chưa trả lời · ● đã gửi (chưa có đáp án). Số trong ô tiêu đề là số câu của tab, nhóm theo '+(tb===T[0].id?'nhóm':'bài')+'. % đúng mỗi câu tính trên số em đã trả lời. Điểm /10 = số câu đúng ÷ số câu đã mở của tab × 10.</div></div>';
+  return h;
+}
+function groupedStudent(qs,r,k,mine){
+  var tb=curTab(),ord={},n=0,gs=[],h='',shown=0;
+  qs.forEach(function(q,i){if(tabOf(q)!==tb)return;ord[i]=++n;if(gs.indexOf(q.group)<0)gs.push(q.group);});
+  gs.forEach(function(g){
+    var idx=[];qs.forEach(function(q,i){if(tabOf(q)===tb&&q.group===g)idx.push(i);});
+    var op=idx.filter(function(i){return i<r;});if(!op.length)return;
+    var done=op.filter(function(i){return mine[qs[i].id]!=null;}).length;
+    h+='<div class="gh"><b>'+esc(gname(qs[idx[0]]))+'</b><span>'+done+'/'+op.length+' câu đã làm · đã mở '+op.length+'/'+idx.length+'</span></div>';
+    op.filter(function(i){return i>=k;}).forEach(function(i){h+=studentQ(qs[i],ord[i]-1,false,mine[qs[i].id]);shown++;});
+    op.filter(function(i){return i<k;}).reverse().forEach(function(i){h+=studentQ(qs[i],ord[i]-1,true,mine[qs[i].id]);shown++;});
+  });
+  if(!shown)h+='<div class="card">Chưa có câu nào ở tab này.</div>';
+  return h;
+}
 function curSess(){var qs=Q(),r=rel(),ss=(S.config&&S.config.sessions)||[];if(!r||!qs[r-1])return '';var q=qs[r-1],i=q.set==='mix'?ss.length-1:(+q.group-1);return (ss[i]&&ss[i].name)||gname(q);}
 function Q(){return (S.config&&S.config.questions)||[];}
 function rel(){return Math.min((S.config&&S.config.released)||0,Q().length);}
@@ -297,7 +367,7 @@ function figSvg(f){
   if(!f)return '';
   if(f.img||f.html){
     var oo='';
-    if(f.img)oo+=(Array.isArray(f.img)?f.img:[f.img]).map(function(n,i){var w=f.w&&f.w[i]?' style="width:'+(+f.w[i])+'px"':'';return '<img class="qfig"'+w+' src="/img/'+esc(n)+'" alt="'+esc(f.alt||'Hình minh họa')+'">';}).join('');
+    if(f.img)oo+='<div class="qfigs">'+(Array.isArray(f.img)?f.img:[f.img]).map(function(n,i){var w=f.w&&f.w[i]?' style="width:'+(+f.w[i])+'px"':'';return '<img class="qfig" data-act="zoom" data-src="/img/'+esc(n)+'" title="Bấm để phóng to"'+w+' src="/img/'+esc(n)+'" alt="'+esc(f.alt||'Hình minh họa')+'">';}).join('')+'</div>';
     if(f.html)oo+='<div class="rawfig">'+f.html+'</div>';
     return oo;
   }
@@ -370,6 +440,11 @@ function studentView(){
     '<div class="meta"><span>Đã mở '+r+'/'+qs.length+' câu</span><span>Đúng '+right+'/'+kc+' câu đã chấm'+(kc?' · Điểm '+sc10(right,kc)+'/10':'')+'</span></div></div>';
   h+=ringCard(S.config.progress);
   if(!r)return h+'<div class="card">Chờ giáo viên mở câu 1…</div>';
+  if(TABS()){
+    h+=tabBar(qs,r)+groupedStudent(qs,r,k,mine);
+    if(r<qs.length)h+='<div class="kv">Còn '+(qs.length-r)+' câu chưa mở.</div>';
+    return h;
+  }
   var hv=!!(c&&c.hasView),ess=hv&&S.tab==='essay',nEss=0;
   for(var e0=0;e0<r;e0++)if(isV(qs[e0]))nEss++;
   if(hv)h+='<div class="seg2"><button class="'+(ess?'':'on')+'" data-act="tab" data-t="main">Làm bài</button><button class="'+(ess?'on':'')+'" data-act="tab" data-t="essay">Tự luận (chỉ xem)'+(nEss?' · '+nEss:'')+'</button></div>';
@@ -456,6 +531,7 @@ function summaryCard(ids,sc,rank,qs,k,P){
     '<div><div class="kv">Cả lớp</div><div class="stats" style="margin:8px 0 14px"><div class="stat"><small>Trung bình</small><strong>'+avg+'%</strong></div><div class="stat"><small>Điểm trung bình</small><strong>'+sc10(tot,kc*P)+'</strong></div><div class="stat"><small>Từ 80% trở lên</small><strong>'+hi+'/'+P+'</strong></div></div>'+
     '<div class="kv">Câu cả lớp làm yếu nhất</div><ol class="rkl">'+(hard||'<li>Chưa có dữ liệu</li>')+'</ol></div></div></div>';
 }
+function effType(){var T=TABS();if(T){var t=T.filter(function(x){return x.id===curTab();})[0];if(t&&t.types.length===1)return t.types[0];}return (S.sel&&S.sel.type)||'all';}
 function candCount(qs,r,group,type){
   return qs.slice(r).filter(function(x){
     if(group==='mix'&&x.set!=='mix')return false;
@@ -499,13 +575,15 @@ function openPanel(qs,r,k){
   var G=(S.config&&S.config.groups)||{},sel=S.sel,gstat={};
   qs.forEach(function(x,i){var key=x.set==='mix'?'mix':String(x.group),g=gstat[key]||(gstat[key]={tot:0,op:0,cl:0,rem:0,t:{mc:0,tf:0,short:0,view:0}});
     g.tot++;g.t[x.type]=(g.t[x.type]||0)+1;if(i<r)g.op++;else g.rem++;if(i<k)g.cl++;});
-  var batch=isBatch(),cand=candCount(qs,r,sel.group,sel.type),n=(batch||sel.n==='all')?cand:Math.min(Math.max(1,+sel.n||1),cand||1);
-  var gl=['1','2','3','4','5','6','mix'].filter(function(g){return gstat[g];});
-  function nm(g){return g==='mix'?((G&&G['7'])||'Đề tổng hợp 12-2-8'):'Nhóm '+g+' · '+(G[g]||'');}
+  var batch=isBatch(),cand=candCount(qs,r,sel.group,effType()),n=(batch||sel.n==='all')?cand:Math.min(Math.max(1,+sel.n||1),cand||1);
+  var tbNow=curTab();
+  var gl=Object.keys(gstat).filter(function(g){return !TABS()||qs.some(function(x){return String(x.group)===g&&x.set!=='mix'&&tabOf(x)===tbNow;});})
+    .sort(function(a,b){return a==='mix'?1:b==='mix'?-1:(+a)-(+b);});
+  function nm(g){return g==='mix'?((G&&G['7'])||'Đề tổng hợp'):(G[g]||('Nhóm '+g));}
   return '<div class="card"><h2>Mở câu theo nhóm và số lượng</h2><div class="seg2"><button class="'+(batch?'':'on')+'" data-act="mode" data-m="single">Từng câu</button><button class="'+(batch?'on':'')+'" data-act="mode" data-m="batch">Cả nhóm một lần</button></div><div class="ctl">'+
     '<label>Nhóm câu<select id="sel-group" data-in="selgroup"><option value="plan"'+(sel.group==='plan'?' selected':'')+'>Theo kế hoạch (câu kế tiếp)</option>'+
     gl.map(function(g){return '<option value="'+g+'"'+(sel.group===g?' selected':'')+'>'+esc(nm(g))+' · còn '+gstat[g].rem+'</option>';}).join('')+'</select></label>'+
-    '<label>Dạng câu<select id="sel-type" data-in="seltype">'+[['all','Mọi dạng'],['mc','Nhiều lựa chọn'],['tf','Đúng - Sai'],['short','Trả lời ngắn'],['view','Chỉ xem']].map(function(t){return '<option value="'+t[0]+'"'+(sel.type===t[0]?' selected':'')+'>'+t[1]+'</option>';}).join('')+'</select></label>'+
+    '<label'+(TABS()?' style="display:none"':'')+'>Dạng câu<select id="sel-type" data-in="seltype">'+[['all','Mọi dạng'],['mc','Nhiều lựa chọn'],['tf','Đúng - Sai'],['short','Trả lời ngắn'],['view','Chỉ xem']].map(function(t){return '<option value="'+t[0]+'"'+(sel.type===t[0]?' selected':'')+'>'+t[1]+'</option>';}).join('')+'</select></label>'+
     (batch?'':'<label>Số câu mở<input id="sel-n" type="number" min="1" max="200" inputmode="numeric" data-in="seln" value="'+n+'"></label>')+
     '<button class="btn primary" data-act="openSel"'+((cand&&!(batch&&r>k))?'':' disabled')+'>'+(batch?'Mở cả nhóm ':'Mở ')+(cand?n:0)+' câu</button></div>'+
     (batch?'<div class="kv" style="margin-top:10px">Mở một lần cho cả nhóm: học sinh làm tự do thứ tự, bấm “Đóng tất cả” một lần để hiện đáp án cả lô.'+(r>k?' <b>Hãy đóng lô đang mở trước khi mở lô mới.</b>':'')+'</div>':'<div class="row" style="margin-top:10px">'+[1,3,5,10].map(function(x){return '<button class="btn sm" data-act="nq" data-n="'+x+'">'+x+' câu</button>';}).join('')+'<button class="btn sm" data-act="nq" data-n="all">Tất cả còn lại ('+cand+')</button></div>')+
@@ -527,10 +605,12 @@ function teacherView(){
   var P=ids.length;
   if(!S.sel)S.sel={group:'plan',type:'all',n:1,mode:'single'};
   var batch=isBatch();
+  var tabRem=TABS()?qs.slice(r).filter(function(x){return tabOf(x)===curTab();}).length:(N-r);
+  var tabOpen=TABS()?qs.slice(0,r).filter(function(x){return tabOf(x)===curTab();}).length:r;
   h+='<div class="card"><div class="row">'+
-    '<button class="btn primary" data-act="openNext"'+(r>=N?' disabled':'')+'>Mở câu '+(r+1)+'</button>'+
-    '<button class="btn" data-act="openSession"'+(r>=N?' disabled':'')+'>Mở hết buổi</button>'+
-    (batch?'<button class="btn primary" data-act="closeAll"'+(k>=r?' disabled':'')+'>Đóng tất cả &amp; hiện đáp án</button>':'<button class="btn" data-act="closeNext"'+(k>=r?' disabled':'')+'>Đóng câu '+(k+1)+' &amp; hiện đáp án</button>'+(r-k>1?'<button class="btn primary" data-act="closeAll">Đóng cả '+(r-k)+' câu đang mở &amp; hiện đáp án</button>':''))+
+    '<button class="btn primary" data-act="openNext"'+(tabRem?'':' disabled')+'>Mở câu '+(tabOpen+1)+'</button>'+
+    '<button class="btn" data-act="openSession"'+(tabRem?'':' disabled')+'>Mở hết '+(TABS()?'nhóm':'buổi')+'</button>'+
+    (batch?'<button class="btn primary" data-act="closeAll"'+(k>=r?' disabled':'')+'>Đóng tất cả &amp; hiện đáp án</button>':'<button class="btn" data-act="closeNext"'+(k>=r?' disabled':'')+'>Đóng câu '+(TABS()&&qs[k]?ordTab(qs,k):k+1)+' &amp; hiện đáp án</button>'+(r-k>1?'<button class="btn primary" data-act="closeAll">Đóng cả '+(r-k)+' câu đang mở &amp; hiện đáp án</button>':''))+
     '<button class="btn" data-act="openAll"'+(r>=N?' disabled':'')+'>Mở tất cả</button>'+
     (S.confirmReset?
       '<button class="btn danger" data-act="reset2">Xác nhận xoá hết kết quả</button><button class="btn" data-act="cancel">Huỷ</button>':
@@ -539,6 +619,7 @@ function teacherView(){
     '<button class="btn" data-act="ans">'+(S.showAns?'Ẩn đáp án':'Hiện đáp án (chỉ giáo viên)')+'</button>'+'<button class="btn" data-act="csv">Tải kết quả (.csv)</button>'+
     '<button class="btn" data-act="optsToggle">'+(S.showOpts?'Ẩn cài đặt thêm':'Cài đặt thêm')+'</button></div><div class="meta"><span>'+esc(curSess())+' · đã mở <b class="num">'+r+'/'+N+'</b> câu · đã đóng <b class="num">'+k+'</b></span><span>Học sinh vào lớp: <b class="num">'+P+(cfgSet().cap>0?'/'+cfgSet().cap:'')+'</b>'+(cfgSet().locked?' · đã khóa':'')+'</span></div></div>';
   h+=ringCard(S.config.progress);
+  if(N)h+=tabBar(qs,r);
   if(N&&S.showOpts){h+=openPanel(qs,r,k);h+=roomPanel();h+=matrixPanel(r);}
   var hasV=qs.some(isV),tt=hasV&&S.ttab==='essay';
   if(hasV)h+='<div class="seg2"><button class="'+(tt?'':'on')+'" data-act="ttab" data-t="main">Câu hỏi làm bài</button><button class="'+(tt?'on':'')+'" data-act="ttab" data-t="essay">Tự luận (chỉ xem)</button></div>';
@@ -547,12 +628,17 @@ function teacherView(){
   if(!N)return h+'<div class="card">Chưa có câu hỏi. Nhờ Claude nạp bộ câu hỏi vào phòng.</div>';
   if(!r)return h+'<div class="card">Chưa mở câu nào. Chọn nhóm và số câu ở trên rồi bấm “Mở” để học sinh bắt đầu.</div>';
 
-  var fq=S.focusQ!=null&&S.focusQ<r?S.focusQ:(k<r?k:r-1),q=qs[fq],kx=keyFor(q.id);
+  var T=TABS(),tbk=curTab();
+  function inT(i){return !T||tabOf(qs[i])===tbk;}
+  function dfq(){var b=k<r?k:r-1;if(inT(b))return b;for(var i=k;i<r;i++)if(inT(i))return i;for(var i2=r-1;i2>=0;i2--)if(inT(i2))return i2;return -1;}
+  var fq=S.focusQ!=null&&S.focusQ<r&&inT(S.focusQ)?S.focusQ:dfq();
+  if(fq<0)return h+'<div class="card">Chưa mở câu nào ở tab này. Chọn nhóm và số câu ở “Cài đặt thêm”, hoặc bấm “Mở câu”.</div>';
+  var q=qs[fq],kx=keyFor(q.id);
   var ans=[],cor=0,wrong=0;
   ids.forEach(function(id){var a=(S.responses[id].answers||{})[q.id];if(a!=null){ans.push(a);var g=grade(q,a,kx);if(g===true)cor++;else if(g===false)wrong++;}});
   var A=ans.length,p=pct(cor,A);
-  var cur=(k<r?k:r-1);
-  h+='<div class="card"><div class="row" style="justify-content:space-between;margin-bottom:12px"><h2 style="margin:0">Câu '+(fq+1)+' · '+(fq<k?'đã đóng':'đang mở')+(S.showOpts?' <span class="tag">'+TLAB[q.type]+'</span>':'')+'</h2>'+(fq!==cur?'<button class="btn" data-act="focus" data-i="'+cur+'">Về câu đang mở</button>':'')+'</div>'+
+  var cur=T?dfq():(k<r?k:r-1);
+  h+='<div class="card"><div class="row" style="justify-content:space-between;margin-bottom:12px"><h2 style="margin:0">Câu '+(T?ordTab(qs,fq):fq+1)+' · '+(fq<k?'đã đóng':'đang mở')+(S.showOpts?' <span class="tag">'+TLAB[q.type]+'</span>':'')+'</h2>'+(fq!==cur?'<button class="btn" data-act="focus" data-i="'+cur+'">Về câu đang mở</button>':'')+'</div>'+
     '<div class="live"><div class="qview"><div class="grp">Học sinh đang thấy · '+esc(gname(q))+'</div>'+
     '<p class="qt" style="margin:6px 0 10px">'+fmt(q.text)+'</p>'+figSvg(q.fig)+qOpts(q,kx,fq<k||!!S.showAns)+teacherNote(q)+
     (fq<k||S.showAns?'':'<div class="grp" style="margin-top:8px">Đáp án đang ẩn. Bấm “Hiện đáp án (chỉ giáo viên)” để xem. Học sinh chỉ thấy khi bấm “Đóng câu &amp; hiện đáp án”.</div>')+'</div>'+
@@ -563,6 +649,7 @@ function teacherView(){
   h+='<div class="kv" style="margin-top:12px">Chưa trả lời: '+(miss.length?miss.map(function(id){return esc(S.responses[id].name);}).join(', '):'không còn ai')+'</div></div>';
 
   if(sumOn()&&cnt(k)>0&&P>0)h+=summaryCard(ids,sc,rank,qs,k,P);
+  if(T)return h+resultTab(ids,qs,r,k,fq);
   h+='<div class="card"><h2>Kết quả từng học sinh'+(k>0?' <small class="grp">(xếp theo '+k+' câu đã đóng)</small>':'')+'</h2><div class="scroll"><table class="m"><thead><tr><th>Học sinh</th>'+
     qs.slice(0,r).map(function(x,i){return '<th><button class="'+(i===fq?'on':'')+'" data-act="focus" data-i="'+i+'" title="'+esc(gname(x)+' · '+TLAB[x.type])+'"'+(i>=r?' disabled':'')+'>'+(i+1)+'</button>'+(S.showOpts?'<span class="ty">'+TSH[x.type]+'</span>':'')+'</th>';}).join('')+
     '<th>Đúng</th><th>%</th><th>Điểm /10</th></tr></thead><tbody>';
@@ -638,6 +725,7 @@ function render(){
     html=S.teacher?head('Giáo viên')+'<div class="card">Chưa có đề. Nhờ Claude nạp bộ câu hỏi vào phòng.</div>'
                   :msg('Chờ giáo viên','Phòng làm bài chưa mở.')+(S.slow&&!S.loaded?'<div class="note">Chưa kết nối được dữ liệu.</div>':'');
   }else html=S.teacher?teacherView():studentView();
+  if(S.zoom)html+='<div class="zoomov" data-act="unzoom" role="dialog" aria-label="Hình phóng to"><img src="'+esc(S.zoom)+'" alt="Hình phóng to"><span>Bấm để đóng</span></div>';
   app.className='wrap'+(S.teacher?' wide':'');
   var osc=app.querySelector('.scroll'),osl=osc?osc.scrollLeft:0,oatEnd=!osc||osc.scrollLeft+osc.clientWidth>=osc.scrollWidth-40;
   var keep={},olds=app.querySelectorAll('.sim'),oi;
@@ -835,13 +923,18 @@ function act(d){
       S.mine.answers=S.mine.answers||{};S.mine.answers[d.q]=val;delete S.draft[d.q];S.err='';render();poll();
     }).catch(function(e){if(e.status===403){SID=null;try{localStorage.removeItem('sid');}catch(x){}S.mine=null;}fail(e);});
   }
+  else if(a==='openNext'&&TABS()){ctl('open',{group:'plan',type:effType(),n:1});}
+  else if(a==='openSession'&&TABS()){var tb2=curTab(),nx=qs.slice(rel()).filter(function(x){return tabOf(x)===tb2;})[0];if(nx)ctl('open',{group:String(nx.group),type:'all',n:'all'});}
   else if(a==='openNext'||a==='openAll'||a==='openSession'||a==='closeNext'||a==='draw'){ctl(a);}
   else if(a==='ans'){S.showAns=!S.showAns;render();}
   else if(a==='ttab'){S.ttab=d.t==='essay'?'essay':'main';render();}
   else if(a==='tab'){S.tab=d.t==='essay'?'essay':'main';render();}
   else if(a==='snd'){S.mute=!S.mute;try{localStorage.setItem('mute',S.mute?'1':'0');}catch(x){}if(!S.mute)sfx(true);render();}
   else if(a==='sum'){S.showSum=!sumOn();render();}
-  else if(a==='openSel'){ctl('open',{group:S.sel.group,type:S.sel.type,n:isBatch()?'all':S.sel.n});}
+  else if(a==='openSel'){ctl('open',{group:S.sel.group,type:effType(),n:isBatch()?'all':S.sel.n});}
+  else if(a==='qtab'){S.qtab=d.t;S.focusQ=null;S.sel=null;render();}
+  else if(a==='zoom'){S.zoom=d.src;render();}
+  else if(a==='unzoom'){S.zoom=null;render();}
   else if(a==='mode'){ctl('settings',{mode:d.m});}
   else if(a==='lockToggle'){ctl('settings',{locked:!cfgSet().manualLock});}
   else if(a==='closeAll'){ctl('closeAll');}
@@ -854,7 +947,7 @@ function act(d){
   else if(a==='reset2'){S.confirmReset=false;S.focusQ=null;S.showSum=undefined;ctl('reset');}
   else if(a==='csv'){
     fetch('/api/t/export.csv',{headers:{'x-teacher-pass':PASS||''}}).then(function(r){return r.blob();}).then(function(b){
-      var u=URL.createObjectURL(b),l=document.createElement('a');l.href=u;l.download='ket-qua-li11-gk1.csv';
+      var u=URL.createObjectURL(b),l=document.createElement('a');l.href=u;l.download='ket-qua-li12-vat-li-nhiet.csv';
       document.body.appendChild(l);l.click();l.remove();setTimeout(function(){URL.revokeObjectURL(u);},1500);
     });
   }

@@ -92,7 +92,12 @@ order.forEach(g => {
 // bảo đảm thứ tự câu khớp thứ tự buổi: đúng sai (nhóm 1–10) rồi trả lời ngắn (nhóm 11–16)
 questions.sort((a, b) => a.group - b.group || 0);
 
-const cfg = { title: 'Luyện tập Vật lí 12 · Vật lí nhiệt', released: 0, closed: 0, groups, sessions, questions };
+// hai tab riêng: đúng sai (10 nhóm) và trả lời ngắn (6 bài)
+const tabs = [
+  { id: 'tf', ten: 'Đúng sai', types: ['tf'] },
+  { id: 'short', ten: 'Trả lời ngắn', types: ['short'] }
+];
+const cfg = { title: 'Luyện tập Vật lí 12 · Vật lí nhiệt', released: 0, closed: 0, tabs, groups, sessions, questions };
 fs.mkdirSync(path.join(root, 'data'), { recursive: true });
 fs.writeFileSync(path.join(root, 'data', 'cfg.json'), JSON.stringify(cfg));
 fs.writeFileSync(path.join(root, 'data', 'key.json'), JSON.stringify({ answers, explain, note }));
