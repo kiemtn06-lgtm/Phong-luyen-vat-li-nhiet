@@ -19,6 +19,7 @@ const KEY = JSON.parse(fs.readFileSync(path.join(__dirname, 'data', 'key.json'),
 const INDEX = fs.readFileSync(path.join(__dirname, 'public', 'index.html'));
 const N = CFG.questions.length;
 const BYID = {}; CFG.questions.forEach(q => { BYID[q.id] = q; });
+const QT = require('./qua_trinh')({ CFG, KEY, BYID, grade: (q, a, k) => grade(q, a, k), save: () => save() });   // điểm quá trình, số bài đã gửi theo câu, LAN cho mã QR
 const DEFAULT_ORDER = CFG.questions.map(q => q.id);
 const VER = crypto.createHash('md5').update(INDEX).digest('hex').slice(0, 8);
 
@@ -74,6 +75,7 @@ function drawMatrix() {
   });
   return [].concat(...chosen);
 }
+QT.ensure(state);
 function joined() { return Object.keys(state.students).length; }
 function classSize() { return state.cap > 0 ? state.cap : joined(); }
 function isLocked() { return !!state.locked || (state.cap > 0 && joined() >= state.cap); }
@@ -145,7 +147,7 @@ function tabIdOf(q) {
 }
 function publicConfig() {
   // câu chưa mở chỉ gửi mã và dạng, không gửi nội dung
-  return {
+  return { sent: QT.sent(state),
     title: CFG.title, tabs: CFG.tabs, groups: CFG.groups, sessions: CFG.sessions, total: N, hasView: CFG.questions.some(q => q.type === 'view'),
     released: state.released, closed: state.closed,
     settings: settingsOut(), progress: progressInfo(), autoSeq: state.autoSeq,
@@ -185,12 +187,14 @@ const server = http.createServer(async (req, res) => {
     const p = url.pathname;
     if (req.method === 'GET' && (p === '/' || p === '/teacher' || p === '/index.html')) return send(res, 200, INDEX, 'text/html; charset=utf-8');
     if (req.method === 'GET' && p === '/healthz') return send(res, 200, 'ok', 'text/plain');
+    // thư viện vẽ mã QR (qrcode-generator, MIT) cho trang giáo viên
+    if (req.method === 'GET' && p === '/lib/qrcode.js') { const b = fs.readFileSync(path.join(__dirname, 'public', 'lib', 'qrcode.js')); res.writeHead(200, { 'Content-Type': 'application/javascript; charset=utf-8', 'Cache-Control': 'public, max-age=86400', 'Content-Length': b.length }); return res.end(b); }
 
     // học sinh
     if (req.method === 'GET' && p === '/api/state') {
       const sid = url.searchParams.get('sid') || '';
       const st = state.students[sid];
-      return send(res, 200, { v: VER, config: publicConfig(), reveal: reveal(), mine: st ? { name: st.name, answers: st.answers } : null });
+      return send(res, 200, { v: VER, config: publicConfig(), reveal: reveal(), mine: st ? { name: st.name, qt: QT.mine(state, st), answers: st.answers } : null });
     }
     if (req.method === 'POST' && p === '/api/join') {
       const b = await readJson(req);
@@ -224,6 +228,7 @@ const server = http.createServer(async (req, res) => {
     // giáo viên
     if (p.startsWith('/api/t/')) {
       if (!isTeacher(req)) return send(res, 401, { error: 'Sai mật khẩu' });
+      if (await QT.route(req, res, p, state, send, readJson)) return;
       if (req.method === 'GET' && p === '/api/t/state') {
         const students = {};
         for (const [sid, s] of Object.entries(state.students)) students[sid] = { name: s.name, answers: s.answers };
@@ -264,7 +269,7 @@ const server = http.createServer(async (req, res) => {
           state.order = ids.concat(DEFAULT_ORDER.filter(id => !pick.has(id)));
           state.released = ids.length; state.closed = 0; state.mode = 'batch'; state.drawn = ids;
         }
-        else if (a === 'reset') { state = { released: 0, closed: 0, order: DEFAULT_ORDER.slice(), students: {}, cap: state.cap, locked: false, mode: state.mode, auto: state.auto, pct: state.pct, autoSeq: state.autoSeq }; }
+        else if (a === 'reset') { const hist = QT.finish(state); state = { released: 0, closed: 0, order: DEFAULT_ORDER.slice(), students: {}, cap: state.cap, locked: false, mode: state.mode, auto: state.auto, pct: state.pct, autoSeq: state.autoSeq }; QT.ensure(state, hist); }
         else return send(res, 400, { error: 'Lệnh không hợp lệ' });
         save();
         return send(res, 200, { released: state.released, closed: state.closed });

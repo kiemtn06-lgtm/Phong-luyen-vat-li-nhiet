@@ -50,3 +50,10 @@ Chấm điểm giống khối 10, 11: câu đúng sai chỉ tính đúng khi ch�
 ## Ghi chú kĩ thuật
 - Động cơ (`server.js`, `public/index.html`) sao từ phòng khối 10, chỉ thêm: hiển thị chỉ số trên/dưới, chữ đậm, danh sách; hiển thị bảng và đồ thị gốc; ô đơn vị cạnh ô trả lời; ghi chú riêng cho giáo viên; trang tự luyện gốc ở `/tu-luyen/...`.
 - Chưa có chế độ "đề ngẫu nhiên theo ma trận" như khối 10 vì chưa có ma trận cho hai bài này.
+
+## Mã QR, điểm quá trình, vòng tròn tiến độ (16/11/2026)
+- **Mã QR**: trang giáo viên có nút **Mã QR** (và tự hiện khi chưa mở câu nào). Bấm vào mã hoặc **Phóng to để chiếu** để học sinh quét. Chạy trên laptop thì mã tự dùng địa chỉ Wi-Fi của máy (học sinh phải cùng mạng).
+- **Điểm quá trình**: mỗi buổi tính từ lúc bắt đầu tới khi bấm **Làm lại từ đầu**; điểm buổi = câu đúng gửi kịp / câu đã chấm × 10. Học sinh thấy điểm từng buổi và điểm trung bình ngay trên trang làm bài, nhận ra nhau theo **họ tên và lớp** (không phân biệt dấu, hoa thường), nên dặn các em gõ tên giống nhau mỗi buổi.
+- Bảng điểm quá trình (nút **Điểm quá trình**) được lưu ở trình duyệt của giáo viên và trên máy chủ. Máy chủ ngủ (mất dữ liệu) thì mở `/teacher` bằng đúng trình duyệt cũ, bảng tự nạp lại lên máy chủ. Đổi máy: **Sao lưu (.json)** rồi **Nạp tệp sao lưu**. Có **Tải bảng điểm (.csv)**, xóa từng buổi, xóa hết.
+- **Vòng tròn tiến độ**: mỗi câu đang mở có vòng tròn "số em đã gửi / sĩ số" ở cả trang học sinh và giáo viên (đầu cột bảng kết quả).
+- Mã dùng chung ở hồ sơ dạy học số: `tools/phong_qr_qua_trinh/` (`vao_phong.py` vá hoặc cập nhật một phòng).
