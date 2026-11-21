@@ -10,7 +10,7 @@ const zlib = require('zlib');
 const ORIG = {};
 
 const PORT = process.env.PORT || 3000;
-const TEACHER_PASS = process.env.TEACHER_PASS || 'giaovien';
+const TEACHER_PASS = process.env.TEACHER_PASS || 'cauhoi';
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const MAX_STUDENTS = 400;
 
